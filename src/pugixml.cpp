@@ -2785,11 +2785,26 @@ PUGI__NS_BEGIN
 
 			while (true)
 			{
-				PUGI__SCANWHILE_UNROLL(!PUGI__IS_CHARTYPE(ss, ct_parse_attr_ws));
+				// NWN2: handle the case when an attribute isn't enclosed in quotes
+				// and can contain invalid characters.
 
-				if (*s == end_quote)
+				if (end_quote != ' ')
+					PUGI__SCANWHILE_UNROLL(!PUGI__IS_CHARTYPE(ss, ct_parse_attr_ws));
+
+				if (*s == end_quote || end_quote == ' ' && (*s == '>' || *s == '/' || *s == '\t' || *s == '\n' || *s == '\r'))
 				{
-					*g.flush(s) = 0;
+					if(*s == '>') {
+						*g.flush(s) = 0;
+						*s = '>'; // Restore the character so the parse can continue
+						return s;
+					}
+					if(*s == '/') {
+						*g.flush(s) = 0;
+						*s = '/'; // Restore the character so the parse can continue
+						return s;
+					}
+					else
+						*g.flush(s) = 0;
 
 					return s + 1;
 				}
@@ -3073,7 +3088,11 @@ PUGI__NS_BEGIN
 						s += (s[2] == '>' ? 3 : 2); // Step over the '\0->'.
 					}
 				}
-				else PUGI__THROW_ERROR(status_bad_comment, s);
+				else // NWN2: Ignore bad comments.
+				{
+					PUGI__SCANFOR(*s == '>');
+					if (*s) ++s; // Skip '>'
+				}
 			}
 			else if (*s == '[')
 			{
@@ -3138,9 +3157,12 @@ PUGI__NS_BEGIN
 					cursor->value = mark;
 				}
 			}
-			else if (*s == 0 && endch == '-') PUGI__THROW_ERROR(status_bad_comment, s);
 			else if (*s == 0 && endch == '[') PUGI__THROW_ERROR(status_bad_cdata, s);
-			else PUGI__THROW_ERROR(status_unrecognized_tag, s);
+			else // NWN2: Ignore unrecognized tags.
+			{
+				PUGI__SCANFOR(*s == '>');
+				if (*s) ++s; // Skip '>'
+			}
 
 			return s;
 		}
@@ -3227,7 +3249,8 @@ PUGI__NS_BEGIN
 			else
 			{
 				// scan for tag end
-				PUGI__SCANFOR(s[0] == '?' && PUGI__ENDSWITH(s[1], '>'));
+				// NWN2: the XML prolog can end with ">" instead of "?>"
+				PUGI__SCANFOR(s[0] == '?' && PUGI__ENDSWITH(s[1], '>') || s[0] == '>');
 				PUGI__CHECK_ERROR(status_bad_pi, s);
 
 				s += (s[1] == '>' ? 2 : 1);
@@ -3307,18 +3330,25 @@ PUGI__NS_BEGIN
 
 											if (!s) PUGI__THROW_ERROR(status_bad_attribute, a->value);
 
-											// After this line the loop continues from the start;
-											// Whitespaces, / and > are ok, symbols and EOF are wrong,
-											// everything else will be detected
-											if (PUGI__IS_CHARTYPE(*s, ct_start_symbol)) PUGI__THROW_ERROR(status_bad_attribute, s);
+											// NWN2: After the end quote, there can be an attribute name.
 										}
-										else PUGI__THROW_ERROR(status_bad_attribute, s);
+										else { // NWN2: attribute value not enclosed in quotes.
+											a->value = s; // Save the offset.
+
+											s = strconv_attribute(s, ' ');
+
+											ch = '"'; // Make as if the value ended in quote.
+
+											if (!s) PUGI__THROW_ERROR(status_bad_attribute, a->value);
+										}
 									}
 									else PUGI__THROW_ERROR(status_bad_attribute, s);
 								}
 								else if (*s == '/')
 								{
-									++s;
+									// NWN2: replace '/' by '\0' in case a non-quoted attribute
+									// value is followed by '/'.
+									*s++ = 0;
 
 									if (*s == '>')
 									{
@@ -3371,21 +3401,24 @@ PUGI__NS_BEGIN
 
 						mark = s;
 
+						// NWN2: handle the case when an end tag doesn't have
+						// an start tag.
+
 						char_t* name = cursor->name;
-						if (!name) PUGI__THROW_ERROR(status_end_element_mismatch, mark);
 
 						while (PUGI__IS_CHARTYPE(*s, ct_symbol))
 						{
-							if (*s++ != *name++) PUGI__THROW_ERROR(status_end_element_mismatch, mark);
+							if (name && *s != *name++) PUGI__THROW_ERROR(status_end_element_mismatch, mark);
+							++s;
 						}
 
-						if (*name)
+						if (name && *name)
 						{
 							if (*s == 0 && name[0] == endch && name[1] == 0) PUGI__THROW_ERROR(status_bad_end_element, s);
 							else PUGI__THROW_ERROR(status_end_element_mismatch, mark);
 						}
 
-						PUGI__POPNODE(); // Pop.
+						if (name) PUGI__POPNODE(); // Pop.
 
 						PUGI__SKIPWS();
 
@@ -3413,7 +3446,11 @@ PUGI__NS_BEGIN
 						if (!s) return s;
 					}
 					else if (*s == 0 && endch == '?') PUGI__THROW_ERROR(status_bad_pi, s);
-					else PUGI__THROW_ERROR(status_unrecognized_tag, s);
+					else // NWN2: Ignore unrecognized tags.
+					{
+						PUGI__SCANFOR(*s == '>');
+						if (*s) ++s; // Skip '>'
+					}
 				}
 				else
 				{

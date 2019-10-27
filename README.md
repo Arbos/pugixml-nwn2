@@ -1,4 +1,50 @@
-pugixml [![Build Status](https://travis-ci.org/zeux/pugixml.svg?branch=master)](https://travis-ci.org/zeux/pugixml) [![Build status](https://ci.appveyor.com/api/projects/status/9hdks1doqvq8pwe7/branch/master?svg=true)](https://ci.appveyor.com/project/zeux/pugixml) [![codecov.io](https://codecov.io/github/zeux/pugixml/coverage.svg?branch=master)](https://codecov.io/github/zeux/pugixml?branch=master) ![MIT](https://img.shields.io/badge/license-MIT-blue.svg)
+pugixml for Neverwinter Nights 2
+================================
+
+NWN2 uses XML files to describe the UI. These XML files are not W3C
+conformant in the following ways:
+
+* Some XML prologs end with `>` instead of `?>`.
+
+```xml
+<?xml version="1.0" encoding="utf-8">
+```
+
+* Some XML prologs use the not valid encoding `NWN2UI`.
+
+```xml
+<?xml version="1.0" encoding="NWN2UI">
+```
+
+* Some files contain non UTF-8 characters even if the encoding is UTF-8.
+* Some comments contain `--`.
+* Documents don't have a single root element.
+* There are closing tags without the corresponding opening tag.
+* Some attributes are not enclosed in quotes.
+
+```xml
+<UIScene name="SCREEN_LEVELUP_BONUS_FEATS" width=1024 height=768 priority="SCENE_INGAME_FULLSCREEN" fullscreen=true cullrenderables=true />
+```
+
+* Some attribute values contain characters that should be escaped, e.g.
+  quotes.
+
+```xml
+<UIScene name="SCREEN_MAINMENU" OnAdd=UIScene_OnAdd_SetupMainMenu("a") />
+```
+
+* Sometimes there is no space between an end quote and the following attribute
+  name.
+
+```xml
+<UIText name="Character"fontfamily="NWN2_Dialog" />
+```
+
+For performance reasons, **pugixml** already accepts XML files that contains
+some of these incompatibilities. **pugixml for NWN2** is a modified version of
+**pugixml** that deals with the rest of incompatibilities.
+
+pugixml
 =======
 
 pugixml is a C++ XML processing library, which consists of a DOM-like interface with rich traversal/modification
